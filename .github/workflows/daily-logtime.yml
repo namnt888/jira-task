@@ -1,0 +1,39 @@
+name: Daily Log Time
+
+on:
+  schedule:
+    - cron: '0 11 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  daily-logtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily log time
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          GOOGLE_SPACE_WEBHOOK: ${{ secrets.GOOGLE_SPACE_WEBHOOK }}
+        run: python scripts/daily_logtime.py
+
+      - name: Commit data changes
+        run: |
+          git config user.name "Sprint Automation Bot"
+          git config user.email "bot@ncop-automation.local"
+          git add data/
+          git diff --staged --quiet || git commit -m "chore: update log history [skip ci]"
+          git push

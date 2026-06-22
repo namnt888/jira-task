@@ -1,0 +1,65 @@
+name: Sprint Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticket_keys:
+        description: 'Paste ticket keys (comma or newline separated, e.g. NCOP-1234,NCOP-1235)'
+        required: true
+        type: string
+      sprint_start_date:
+        description: 'Sprint start date (YYYY-MM-DD)'
+        required: true
+        type: string
+      sprint_end_date:
+        description: 'Sprint end date (YYYY-MM-DD)'
+        required: true
+        type: string
+      hours_per_point:
+        description: 'Hours per story point (default: 8)'
+        required: false
+        default: '8'
+        type: string
+      assignee_account_id:
+        description: 'Jira account ID of the person to log time for'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  sprint-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run sprint setup
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          GOOGLE_SPACE_WEBHOOK: ${{ secrets.GOOGLE_SPACE_WEBHOOK }}
+        run: |
+          python scripts/sprint_setup.py \
+            "${{ github.event.inputs.ticket_keys }}" \
+            "${{ github.event.inputs.sprint_start_date }}" \
+            "${{ github.event.inputs.sprint_end_date }}" \
+            "${{ github.event.inputs.hours_per_point }}" \
+            "${{ github.event.inputs.assignee_account_id }}"
+
+      - name: Commit data changes
+        run: |
+          git config user.name "Sprint Automation Bot"
+          git config user.email "bot@ncop-automation.local"
+          git add data/
+          git diff --staged --quiet || git commit -m "chore: update sprint config [skip ci]"
+          git push

@@ -1,0 +1,53 @@
+name: Sprint Close
+
+on:
+  schedule:
+    - cron: '0 10 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Force run even if not sprint end date'
+        required: false
+        default: 'false'
+        type: boolean
+      dry_run:
+        description: 'Dry run — show what would happen without making changes'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  sprint-close:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run sprint close
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          GOOGLE_SPACE_WEBHOOK: ${{ secrets.GOOGLE_SPACE_WEBHOOK }}
+        run: |
+          python scripts/sprint_close.py \
+            ${{ github.event.inputs.force_run == 'true' && '--force' || '' }} \
+            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+
+      - name: Commit data changes
+        run: |
+          git config user.name "Sprint Automation Bot"
+          git config user.email "bot@ncop-automation.local"
+          git add data/
+          git diff --staged --quiet || git commit -m "chore: update sprint data [skip ci]"
+          git push
