@@ -2,7 +2,8 @@ import json
 import logging
 import os
 import sys
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from jira_client import (
     get_issue, get_transitions, do_transition, update_issue, get_tz
@@ -25,7 +26,7 @@ PARENT_DONE_STATUS_IDS = {
     "10040",  # Cancelled
 }
 PARENT_TARGET_STATUS_ID = "10511"  # TESTED
-SAIGON = get_tz()
+SAIGON = ZoneInfo("Asia/Saigon")
 
 
 def _load_json(path):
@@ -74,7 +75,7 @@ def run(force_run=False, dry_run=False):
         return
 
     sprint_end = config["sprint_end_date"]
-    today_str = date.today().isoformat()
+    today_str = datetime.now(SAIGON).date().isoformat()
 
     if today_str != sprint_end and not force_run:
         logger.info(f"Today {today_str} != sprint end {sprint_end}, skipping (use force_run)")
@@ -105,10 +106,10 @@ def run(force_run=False, dry_run=False):
                     success, err = _transition_if_possible(sk, SUBTASK_DONE_TARGET_ID)
                     if success:
                         subtask_done_count += 1
+                        _reset_remaining(sk)
+                        reset_count += 1
                     else:
                         errors.append(f"{sk}: {err}")
-                    _reset_remaining(sk)
-                    reset_count += 1
                 else:
                     subtask_done_count += 1
                     reset_count += 1
@@ -127,10 +128,10 @@ def run(force_run=False, dry_run=False):
                 success, err = _transition_if_possible(key, PARENT_TARGET_STATUS_ID)
                 if success:
                     parent_done_count += 1
+                    _reset_remaining(key)
+                    reset_count += 1
                 else:
                     errors.append(f"{key}: {err}")
-                _reset_remaining(key)
-                reset_count += 1
             else:
                 parent_done_count += 1
                 reset_count += 1

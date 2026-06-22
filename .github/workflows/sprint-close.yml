@@ -2,7 +2,7 @@ name: Sprint Close
 
 on:
   schedule:
-    - cron: '0 10 * * 1-5'
+    - cron: '0 10 * * *'
   workflow_dispatch:
     inputs:
       force_run:

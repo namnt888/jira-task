@@ -42,6 +42,7 @@ def _request(method, path, **kwargs):
     url = f"{JIRA_BASE_URL}{path}"
     session = _get_session()
     timeout = kwargs.pop("timeout", 30)
+    last_status_code = None
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -55,6 +56,7 @@ def _request(method, path, **kwargs):
             time.sleep(API_DELAY)
             return resp.json() if resp.text else {}
         except requests.exceptions.RequestException as e:
+            last_status_code = getattr(e.response, 'status_code', None) if hasattr(e, 'response') else None
             if attempt < MAX_RETRIES - 1:
                 wait = (attempt + 1) * 2
                 logger.warning(f"Request failed: {e}. Retrying in {wait}s")
@@ -62,7 +64,7 @@ def _request(method, path, **kwargs):
             else:
                 logger.error(f"Request failed after {MAX_RETRIES} retries: {e}")
                 raise
-    return None
+    raise Exception(f"Request failed after {MAX_RETRIES} retries: {method} {path} (last status: {last_status_code})")
 
 
 def get_issue(key, fields=None):
