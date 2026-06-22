@@ -83,8 +83,55 @@ def run():
     skipped_done = []
 
     for ticket in config["tickets"]:
-        for subtask in ticket.get("subtasks", []):
-            key = subtask["key"]
+        subtasks = ticket.get("subtasks", [])
+        
+        if subtasks:
+            for subtask in subtasks:
+                key = subtask["key"]
+                issue = get_issue(key, fields=["timetracking", "status"])
+                fields = issue.get("fields", {})
+                status_id = fields.get("status", {}).get("id", "")
+                timetracking = fields.get("timetracking", {}) or {}
+                remaining = timetracking.get("remainingEstimateSeconds", 0)
+
+                if status_id in DONE_STATUS_IDS:
+                    skipped_done.append(key)
+                    logger.info(f"{key}: skipping (status done)")
+                    continue
+
+                if not remaining or remaining <= 0:
+                    skipped_done.append(key)
+                    logger.info(f"{key}: skipping (remaining = 0)")
+                    continue
+
+                daily_seconds = max(
+                    MIN_LOG_SECONDS,
+                    round(remaining / remaining_working_days / ROUND_TO_SECONDS) * ROUND_TO_SECONDS
+                )
+
+                started = f"{today_str}T09:00:00.000+0700"
+                comment = {
+                    "type": "doc",
+                    "version": 1,
+                    "content": [{
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": "Auto-logged by sprint automation"}]
+                    }]
+                }
+
+                add_worklog(key, daily_seconds, started, comment)
+                logger.info(f"{key}: logged {daily_seconds}s (remaining was {remaining}s)")
+
+                entries.append({
+                    "key": key,
+                    "logged_seconds": daily_seconds,
+                    "remaining_before": remaining,
+                    "remaining_after": remaining - daily_seconds,
+                })
+                total_logged += daily_seconds
+                logged_details.append(f"• {key}: +{daily_seconds // 3600}h{(daily_seconds % 3600) // 60}m (remaining: {remaining // 3600}h → {(remaining - daily_seconds) // 3600}h)")
+        else:
+            key = ticket["key"]
             issue = get_issue(key, fields=["timetracking", "status"])
             fields = issue.get("fields", {})
             status_id = fields.get("status", {}).get("id", "")
